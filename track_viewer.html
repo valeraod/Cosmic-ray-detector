@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Просмотр профилей кандидатов в частицы</title>
+<style>
+  :root {
+    --bg: #0b0d0c;
+    --panel: #141716;
+    --panel-2: #1c201f;
+    --line: #2a2f2d;
+    --text: #e8e6df;
+    --text-dim: #8a8f8b;
+    --amber: #ff9d2e;
+    --amber-dim: #7a5424;
+    --green: #4fd67a;
+    --red: #e2554a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Mono', 'Consolas', monospace;
+    min-height: 100vh;
+  }
+  header {
+    padding: 20px 28px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  h1 {
+    margin: 0 0 4px;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--text);
+  }
+  .sub {
+    font-size: 12.5px;
+    color: var(--text-dim);
+  }
+  .layout {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    min-height: calc(100vh - 76px);
+  }
+  .sidebar {
+    border-right: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .dropzone {
+    margin: 14px;
+    padding: 20px 14px;
+    border: 1px dashed var(--line);
+    border-radius: 4px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-dim);
+    cursor: pointer;
+  }
+  .dropzone.drag { border-color: var(--amber); color: var(--amber); }
+  .dropzone input { display: none; }
+  .controls {
+    padding: 0 14px 10px;
+    display: flex;
+    gap: 8px;
+    font-size: 11.5px;
+  }
+  select, button {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 11.5px;
+    padding: 5px 7px;
+    border-radius: 3px;
+  }
+  select { flex: 1; }
+  .count {
+    padding: 0 14px 8px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .grid {
+    overflow-y: auto;
+    padding: 4px 12px 20px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    flex: 1;
+  }
+  .thumb {
+    position: relative;
+    background: #000;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    cursor: pointer;
+    aspect-ratio: 1;
+    overflow: hidden;
+  }
+  .thumb.active { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber); }
+  .thumb img { width: 100%; height: 100%; image-rendering: pixelated; display: block; filter: brightness(2.2); }
+  .thumb .idx {
+    position: absolute; top: 1px; left: 2px;
+    font-size: 9px; color: var(--text-dim); text-shadow: 0 0 2px #000;
+  }
+  .thumb .flag {
+    position: absolute; bottom: 1px; right: 2px;
+    width: 5px; height: 5px; border-radius: 50%;
+  }
+  .main {
+    padding: 24px 32px;
+    overflow-y: auto;
+  }
+  .empty {
+    color: var(--text-dim);
+    font-size: 13px;
+    padding: 40px 0;
+  }
+  .detail {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 28px;
+  }
+  .zoom-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .zoom {
+    width: 280px; height: 280px;
+    background: #000;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+  }
+  .zoom img { width: 100%; height: 100%; image-rendering: pixelated; filter: brightness(2.2); }
+  .nav { display: flex; gap: 8px; }
+  .nav button { flex: 1; padding: 8px; cursor: pointer; }
+  .nav button:hover { border-color: var(--amber); color: var(--amber); }
+  table.meta {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  table.meta td {
+    padding: 4px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  table.meta td:first-child { color: var(--text-dim); width: 55%; }
+  table.meta td:last-child { text-align: right; font-weight: 600; }
+  .flag-yes { color: var(--amber); }
+  .flag-no { color: var(--green); }
+  .chart-title {
+    font-size: 12.5px;
+    color: var(--text-dim);
+    margin: 0 0 10px;
+    letter-spacing: 0.03em;
+  }
+  .chart-wrap { position: relative; height: 320px; margin-bottom: 22px; }
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 14px;
+    font-size: 11px; color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .sw { width: 10px; height: 2px; display: inline-block; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Просмотр профилей кандидатов в частицы</h1>
+  <div class="sub">Загрузите zip-экспорт (events.csv + images/) — программа построит яркостный профиль по 4 направлениям через самый яркий пиксель каждого события</div>
+</header>
+
+<div class="layout">
+  <div class="sidebar">
+    <div class="dropzone" id="dropzone">
+      Перетащите .zip сюда<br>или нажмите, чтобы выбрать файл
+      <input type="file" id="fileInput" accept=".zip">
+    </div>
+    <div class="controls">
+      <select id="sortSel">
+        <option value="index">Сортировка: по номеру</option>
+        <option value="brightness_desc">Яркость (убыв.)</option>
+        <option value="area_desc">Площадь (убыв.)</option>
+        <option value="marginal_first">Сначала marginal</option>
+      </select>
+    </div>
+    <div class="count" id="countLabel"></div>
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <div class="main" id="main">
+    <div class="empty">Нет загруженных данных. Перетащите zip слева.</div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+let events = [];
+let imageCache = {}; // filename -> {url, gray: Int32Array, w, h}
+let activeIndex = 0;
+let chart = null;
+
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const grid = document.getElementById('grid');
+const main = document.getElementById('main');
+const countLabel = document.getElementById('countLabel');
+const sortSel = document.getElementById('sortSel');
+
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('drag');
+  if (e.dataTransfer.files.length) loadZip(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => { if (e.target.files.length) loadZip(e.target.files[0]); });
+sortSel.addEventListener('change', renderGrid);
+
+function parseCSV(text) {
+  const lines = text.trim().split(/\r?\n/);
+  const headers = lines[0].split(',');
+  return lines.slice(1).map(line => {
+    const cells = line.split(',');
+    const obj = {};
+    headers.forEach((h, i) => obj[h.trim()] = (cells[i] !== undefined ? cells[i].trim() : ''));
+    return obj;
+  });
+}
+
+async function loadZip(file) {
+  main.innerHTML = '<div class="empty">Загрузка и разбор архива...</div>';
+  try {
+    const zip = await JSZip.loadAsync(file);
+    const csvEntry = Object.keys(zip.files).find(n => n.endsWith('events.csv'));
+    if (!csvEntry) { main.innerHTML = '<div class="empty">В архиве не найден events.csv</div>'; return; }
+    const csvText = await zip.files[csvEntry].async('string');
+    events = parseCSV(csvText).filter(r => r.image_file);
+
+    imageCache = {};
+    for (const ev of events) {
+      const entry = Object.keys(zip.files).find(n => n.endsWith(ev.image_file.replace(/^.*images\//, 'images/')) || n.endsWith(ev.image_file));
+      if (!entry) continue;
+      const blob = await zip.files[entry].async('blob');
+      const url = URL.createObjectURL(blob);
+      imageCache[ev.image_file] = { url, gray: null, w: 0, h: 0 };
+    }
+
+    // preload pixel data
+    await Promise.all(events.map(ev => extractPixels(ev.image_file)));
+
+    activeIndex = 0;
+    renderGrid();
+    renderDetail();
+  } catch (err) {
+    main.innerHTML = '<div class="empty">Ошибка чтения архива: ' + err.message + '</div>';
+  }
+}
+
+function extractPixels(filename) {
+  return new Promise((resolve) => {
+    const cached = imageCache[filename];
+    if (!cached || cached.gray) { resolve(); return; }
+    const img = new Image();
+    img.onload = () => {
+      const w = img.naturalWidth, h = img.naturalHeight;
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      const data = ctx.getImageData(0, 0, w, h).data;
+      const gray = new Float64Array(w * h);
+      for (let i = 0; i < w * h; i++) {
+        const r = data[i*4], g = data[i*4+1], b = data[i*4+2];
+        gray[i] = 0.299*r + 0.587*g + 0.114*b;
+      }
+      cached.gray = gray; cached.w = w; cached.h = h;
+      resolve();
+    };
+    img.onerror = resolve;
+    img.src = cached.url;
+  });
+}
+
+function sortedEvents() {
+  const arr = events.map((e, i) => ({ e, i }));
+  const mode = sortSel.value;
+  if (mode === 'brightness_desc') arr.sort((a,b) => (+b.e.max_brightness) - (+a.e.max_brightness));
+  else if (mode === 'area_desc') arr.sort((a,b) => (+b.e.area_px) - (+a.e.area_px));
+  else if (mode === 'marginal_first') arr.sort((a,b) => (+b.e.marginal) - (+a.e.marginal));
+  return arr;
+}
+
+function renderGrid() {
+  grid.innerHTML = '';
+  countLabel.textContent = events.length + ' событий загружено';
+  sortedEvents().forEach(({e, i}) => {
+    const cached = imageCache[e.image_file];
+    if (!cached) return;
+    const div = document.createElement('div');
+    div.className = 'thumb' + (i === activeIndex ? ' active' : '');
+    div.innerHTML = `<img src="${cached.url}"><span class="idx">${i+1}</span>`;
+    const flag = document.createElement('div');
+    flag.className = 'flag';
+    flag.style.background = (+e.marginal === 1) ? 'var(--amber)' : 'var(--green)';
+    div.appendChild(flag);
+    div.addEventListener('click', () => { activeIndex = i; renderGrid(); renderDetail(); });
+    grid.appendChild(div);
+  });
+}
+
+function computeProfile(gray, w, h, peakIdx) {
+  const py = Math.floor(peakIdx / w), px = peakIdx % w;
+  const R = 8;
+  const at = (x, y) => (x>=0 && x<w && y>=0 && y<h) ? gray[y*w+x] : null;
+  const offsets = [];
+  for (let d = -R; d <= R; d++) offsets.push(d);
+  const horiz = offsets.map(d => at(px+d, py));
+  const vert  = offsets.map(d => at(px, py+d));
+  const diag1 = offsets.map(d => at(px+d, py-d)); // "/"
+  const diag2 = offsets.map(d => at(px+d, py+d)); // "\"
+  return { offsets, horiz, vert, diag1, diag2, px, py };
+}
+
+function renderDetail() {
+  if (!events.length) return;
+  const e = events[activeIndex];
+  const cached = imageCache[e.image_file];
+  if (!cached || !cached.gray) { main.innerHTML = '<div class="empty">Не удалось прочитать изображение</div>'; return; }
+
+  const gray = cached.gray, w = cached.w, h = cached.h;
+  let peakIdx = 0, peakVal = -1;
+  for (let i = 0; i < gray.length; i++) if (gray[i] > peakVal) { peakVal = gray[i]; peakIdx = i; }
+
+  // background stats excluding 3x3 box around peak
+  const py = Math.floor(peakIdx / w), px = peakIdx % w;
+  const bgVals = [];
+  for (let i = 0; i < gray.length; i++) {
+    const x = i % w, y = Math.floor(i / w);
+    if (Math.abs(x-px) <= 1 && Math.abs(y-py) <= 1) continue;
+    bgVals.push(gray[i]);
+  }
+  bgVals.sort((a,b) => a-b);
+  const median = bgVals[Math.floor(bgVals.length/2)];
+  const mean = bgVals.reduce((a,b)=>a+b,0) / bgVals.length;
+  const variance = bgVals.reduce((a,b)=>a+(b-mean)**2,0) / bgVals.length;
+  const std = Math.sqrt(variance);
+  const sigma = std > 0 ? (peakVal - median) / std : 0;
+
+  const prof = computeProfile(gray, w, h, peakIdx);
+
+  main.innerHTML = `
+    <div class="detail">
+      <div class="zoom-wrap">
+        <div class="zoom"><img src="${cached.url}"></div>
+        <div class="nav">
+          <button id="prevBtn">← пред.</button>
+          <button id="nextBtn">след. →</button>
+        </div>
+        <table class="meta">
+          <tr><td>Событие</td><td>#${activeIndex+1} / ${events.length}</td></tr>
+          <tr><td>Файл</td><td>${e.image_file.split('/').pop()}</td></tr>
+          <tr><td>Время</td><td>${e.timestamp || '—'}</td></tr>
+          <tr><td>Координаты (x,y)</td><td>${e.x}, ${e.y}</td></tr>
+          <tr><td>Пик яркости</td><td>${peakVal.toFixed(1)}</td></tr>
+          <tr><td>Порог обнаружения</td><td>${e.threshold}</td></tr>
+          <tr><td>Фон (медиана / σ)</td><td>${median.toFixed(1)} / ${std.toFixed(2)}</td></tr>
+          <tr><td>Превышение над фоном</td><td>${sigma.toFixed(1)}σ</td></tr>
+          <tr><td>Площадь (area_px)</td><td>${e.area_px}</td></tr>
+          <tr><td>Форма</td><td>${e.shape || '—'}</td></tr>
+          <tr><td>Вытянутость</td><td>${e.elongation || '—'}</td></tr>
+          <tr><td>Marginal</td><td class="${(+e.marginal===1)?'flag-yes':'flag-no'}">${(+e.marginal===1)?'да':'нет'}</td></tr>
+          <tr><td>Halo count / peak</td><td>${e.halo_count} / ${e.halo_peak}</td></tr>
+        </table>
+      </div>
+      <div>
+        <p class="chart-title">Яркостный профиль через пиковый пиксель (смещение в пикселях, 0 = пик)</p>
+        <div class="legend">
+          <span><span class="sw" style="background:#ff9d2e"></span>по горизонтали</span>
+          <span><span class="sw" style="background:#4fd67a"></span>по вертикали</span>
+          <span><span class="sw" style="background:#5a8fd6"></span>диагональ /</span>
+          <span><span class="sw" style="background:#d65a9e"></span>диагональ \\</span>
+        </div>
+        <div class="chart-wrap"><canvas id="profChart" role="img" aria-label="Яркостный профиль события через пиковый пиксель по четырём направлениям"></canvas></div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('prevBtn').addEventListener('click', () => { activeIndex = (activeIndex-1+events.length)%events.length; renderGrid(); renderDetail(); });
+  document.getElementById('nextBtn').addEventListener('click', () => { activeIndex = (activeIndex+1)%events.length; renderGrid(); renderDetail(); });
+
+  if (chart) chart.destroy();
+  const ctx = document.getElementById('profChart');
+  const thr = parseFloat(e.threshold) || null;
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: prof.offsets,
+      datasets: [
+        { label: 'горизонталь', data: prof.horiz, borderColor: '#ff9d2e', backgroundColor: '#ff9d2e', pointRadius: 2, borderWidth: 2, spanGaps: true },
+        { label: 'вертикаль', data: prof.vert, borderColor: '#4fd67a', backgroundColor: '#4fd67a', pointRadius: 2, borderWidth: 2, spanGaps: true },
+        { label: 'диагональ /', data: prof.diag1, borderColor: '#5a8fd6', backgroundColor: '#5a8fd6', pointRadius: 2, borderWidth: 1.5, borderDash: [4,2], spanGaps: true },
+        { label: 'диагональ \\', data: prof.diag2, borderColor: '#d65a9e', backgroundColor: '#d65a9e', pointRadius: 2, borderWidth: 1.5, borderDash: [4,2], spanGaps: true },
+        ...(thr ? [{ label: 'порог', data: prof.offsets.map(()=>thr), borderColor: '#8a8f8b', borderWidth: 1, borderDash: [2,3], pointRadius: 0 }] : [])
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { title: { display: true, text: 'смещение от пика, px', color: '#8a8f8b' }, ticks: { color: '#8a8f8b' }, grid: { color: '#2a2f2d' } },
+        y: { title: { display: true, text: 'яркость', color: '#8a8f8b' }, ticks: { color: '#8a8f8b' }, grid: { color: '#2a2f2d' } }
+      },
+      plugins: { legend: { display: false } }
+    }
+  });
+}
+
+document.addEventListener('keydown', (ev) => {
+  if (!events.length) return;
+  if (ev.key === 'ArrowRight') { activeIndex = (activeIndex+1)%events.length; renderGrid(); renderDetail(); }
+  if (ev.key === 'ArrowLeft') { activeIndex = (activeIndex-1+events.length)%events.length; renderGrid(); renderDetail(); }
+});
+</script>
+</body>
+</html>
